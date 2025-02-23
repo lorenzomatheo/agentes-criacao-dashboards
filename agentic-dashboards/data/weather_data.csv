@@ -1,0 +1,2 @@
+weather,base,visibility,dt,timezone,id,name,cod,coord.lon,coord.lat,main.temp,main.feels_like,main.temp_min,main.temp_max,main.pressure,main.humidity,main.sea_level,main.grnd_level,wind.speed,wind.deg,clouds.all,sys.type,sys.id,sys.country,sys.sunrise,sys.sunset
+"[{'id': 802, 'main': 'Clouds', 'description': 'nuvens dispersas', 'icon': '03d'}]",stations,10000,1740339646,-10800,3451328,Ribeirão Preto,200,-47.8103,-21.1775,33,31.86,33,33,1011,29,1011,942,2.57,70,40,1,8428,BR,1740301555,1740347015
