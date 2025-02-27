@@ -26,7 +26,7 @@ import logging
 
 
 
-openai_api_key = os.getenv['OPENAI_API_KEY']
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 
 llm = ChatOpenAI(model="gpt-3.5-turbo")
@@ -42,8 +42,12 @@ def extract_csv_data(filepath):
         logging.error(f"Erro ao extrair CSV: {e}")
         return None
 
-def create_db_engine(filepath):
+def create_db_engine(df: pd.DataFrame) -> 'sqlalchemy.engine.Engine' | None:
     """Cria um engine SQLAlchemy para se conectar ao banco de dados."""
+    if df is None:
+        logging.error("DataFrame inválido para criar o banco.")
+        return None
+    
     try:
         engine = create_engine(filepath)
         logging.info(f"Engine criada com sucesso para: {filepath}")
@@ -94,25 +98,34 @@ def create_sql_agent_from_session(session,engine):
         logging.error(f"Erro ao criar Agente SQL: {e}")
         return None
 
+# Pendente 1 
 def query_with_langchain(agent_executor, user_query):
+    """Interagem com um banco de dados usando um agente LangChain e uma consulta em linguagem natural"""
+    if agent_executor is None:
+        logging.error("AgentExecutor inválido fornecido.")
+        return None
+    
+    if not user_query or not isinstance(user_query, str):
+        logging.error("Consulta do usuário inválida ou vazia.")
+        return None
+
+    try:
+        logging.info(f"Executando consulta: {user_query}")
+        result = agent_executor.run(user_query)  # Executa a consulta com o agente
+        logging.info("Consulta executada com sucesso.")
+        return result
+    
+    except Exception as e:
+        logging.error(f"Erro ao executar a consulta '{user_query}': {e}")
+        return None
 
 
+# Pendente 2
+# Integração LangChain com fluxo de trabalho
+
+# Pendente 3
+# Interface com Streamlit()
 
 
-
-
-
-
-    # PENDENTE
-    # def extract_json_data():
-    #    pass
-
-    #PENDENTE
-    # def padronize_date_columns(df):
-    #    pass
-
-    #PENDENTE
-    # def convert_type_column(df):
-    #    pass
 
 
