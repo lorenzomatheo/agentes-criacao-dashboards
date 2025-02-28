@@ -27,13 +27,15 @@ import logging
 
 
 openai_api_key = os.getenv('OPENAI_API_KEY')
+if not openai_api_key:
+    raise ValueError("Chave da API OpenAI não encontrada.")
 
 
 llm = ChatOpenAI(model="gpt-3.5-turbo")
 
 
 
-def extract_csv_data(filepath):
+def extract_csv_data(contents: str, filepath: str) -> pd.DataFrame | None:
     """Extrai dados de um arquivo CSV."""
     try:
         df = pd.read_csv(filepath)
@@ -42,21 +44,32 @@ def extract_csv_data(filepath):
         logging.error(f"Erro ao extrair CSV: {e}")
         return None
 
+def extract_excel_data(filepath: str) -> pd.DataFrame | None:
+    """Extrai dados de um arquivo Excel."""
+    try:
+        df = pd.read_excel(filepath)
+        return df
+    except Exception as e:
+        logging.error(f"Erro ao extrair Excel: {e}")
+        return None
+
 def create_db_engine(df: pd.DataFrame) -> 'sqlalchemy.engine.Engine' | None:
     """Cria um engine SQLAlchemy para se conectar ao banco de dados."""
     if df is None:
         logging.error("DataFrame inválido para criar o banco.")
         return None
-    
     try:
-        engine = create_engine(filepath)
-        logging.info(f"Engine criada com sucesso para: {filepath}")
+        # Criar um banco SQLite em memória
+        engine = create_engine("sqlite:///:memory:")
+        # Salvar o DataFrame como uma tabela chamada 'data_table'
+        df.to_sql("data_table", engine, if_exists="replace", index=False)
+        logging.info("Engine criada e banco preenchido com sucesso.")
         return engine
     except SQLAlchemyError as e:
-        logging.error(f"Erro ao criar engine para {filepath}: {e}")
+        logging.error(f"Erro ao criar engine ou preencher o banco: {e}")
         return None
     
-def create_session(engine):
+def create_session(engine) -> 'sqlalchemy.orm.Session' | None:
     """Criação de um sessiomaker associado a engine, retornando uma session"""
     try:
         Session = sessionmaker(bind=engine)
@@ -68,7 +81,7 @@ def create_session(engine):
         return None
 
 
-def create_sql_agent_from_session(session,engine):
+def create_sql_agent_from_session(session,engine) -> 'AgentExecutor' | None:
     """ Criação de Agente SQL com LangChain a partir da session do SQLALchemy"""
     if session is None:
         logging.error("Sessão SQLAlchemy inválida para criar o agente SQL")
@@ -98,17 +111,12 @@ def create_sql_agent_from_session(session,engine):
         logging.error(f"Erro ao criar Agente SQL: {e}")
         return None
 
-# Pendente 1 
-def query_with_langchain(agent_executor, user_query):
-    """Interagem com um banco de dados usando um agente LangChain e uma consulta em linguagem natural"""
-    if agent_executor is None:
-        logging.error("AgentExecutor inválido fornecido.")
-        return None
-    
-    if not user_query or not isinstance(user_query, str):
-        logging.error("Consulta do usuário inválida ou vazia.")
-        return None
 
+def query_with_langchain(agent_executor, user_query: str) -> str | None:
+    """Interagem com um banco de dados usando um agente LangChain e uma consulta em linguagem natural"""
+    if agent_executor is None or not user_query or not isinstance(user_query, str):
+        logging.error("Agente ou consulta inválida.")
+        return None
     try:
         logging.info(f"Executando consulta: {user_query}")
         result = agent_executor.run(user_query)  # Executa a consulta com o agente
