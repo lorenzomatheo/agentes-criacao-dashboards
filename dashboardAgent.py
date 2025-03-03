@@ -52,6 +52,51 @@ def extract_excel_data(filepath: str) -> pd.DataFrame | None:
     except Exception as e:
         logging.error(f"Erro ao extrair Excel: {e}")
         return None
+    
+def transform_data(df: pd.DataFrame) -> pd.DataFrame | None:
+    """Transforma e limpa dados"""
+    if df is None or not isinstance(df, pd.DataFrame):
+        logging.error("DataFrame inválido para tratar os dados.")
+        return None
+    try:
+        transformed_df = df.copy()
+        initial_rows = len(transformed_df)
+        logging.info(f"Iniciando transformação com {initial_rows} linhas e {len(transformed_df.columns)} colunas.")
+        
+        # Remover linhas com valores nulos em colunas críticas (ajuste os nomes)
+        if critical_columns is None:
+            critical_columns = [col for col in transformed_df.columns if 'id' in col.lower() or 'valor' in col.lower()]
+        if critical_columns:
+            transformed_df.dropna(subset=critical_columns, inplace=True)
+            logging.info(f"Removidas {initial_rows - len(transformed_df)} linhas com nulos em {critical_columns}.")
+
+        # Padronizar nomes de colunas (remover espaços, letras minúsculas)
+        transformed_df.columns = [col.strip().replace(' ', '_').lower() for col in transformed_df.columns]
+        logging.info("Nomes de colunas padronizados.")
+
+        # Converter tipos de dados caso necessário(Tipo de data por exemplo)
+        for col in transformed_df.columns:
+            if "data" in col or "date" in col:
+                transformed_df[col] = pd.to_datetime(transformed_df[col], errors='coerce')
+            elif transformed_df[col].dtype == 'object':
+                try:
+                    transformed_df[col] = pd.to_numeric(transformed_df[col], errors='coerce')
+                except ValueError:
+                    pass  # Ignora se não for conversível
+
+
+        # Remover duplicatas, se aplicável
+        initial_rows = len(transformed_df)
+        transformed_df.drop_duplicates(inplace=True)
+        logging.info(f"Removidas {initial_rows - len(transformed_df)} duplicatas.")
+
+        logging.info(f"Transformação concluída: {len(transformed_df)} linhas restantes.")
+        return transformed_df
+    
+    except Exception as e:
+        logging.error(f"Erro ao transformar os dados: {e}")
+        return None
+
 
 def create_db_engine(df: pd.DataFrame) -> 'sqlalchemy.engine.Engine' | None:
     """Cria um engine SQLAlchemy para se conectar ao banco de dados."""
@@ -127,12 +172,6 @@ def query_with_langchain(agent_executor, user_query: str) -> str | None:
         logging.error(f"Erro ao executar a consulta '{user_query}': {e}")
         return None
 
-
-# Pendente 2
-# Integração LangChain com fluxo de trabalho
-
-# Pendente 3
-# Interface com Streamlit()
 
 
 
