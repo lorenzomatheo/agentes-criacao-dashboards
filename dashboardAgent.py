@@ -3,7 +3,6 @@ import os
 import plotly.express as px
 import dash
 from dash import dcc, html
-import requests
 import os
 import json
 from datetime import datetime
@@ -35,7 +34,7 @@ llm = ChatOpenAI(model="gpt-3.5-turbo")
 
 
 
-def extract_csv_data(contents: str, filepath: str) -> pd.DataFrame | None:
+def extract_csv_data(filepath: str) -> pd.DataFrame | None:
     """Extrai dados de um arquivo CSV."""
     try:
         df = pd.read_csv(filepath)
@@ -52,8 +51,18 @@ def extract_excel_data(filepath: str) -> pd.DataFrame | None:
     except Exception as e:
         logging.error(f"Erro ao extrair Excel: {e}")
         return None
-    
-def transform_data(df: pd.DataFrame) -> pd.DataFrame | None:
+
+def extract_sql_data(connection_string: str, query: str) -> pd.DataFrame | None:
+    try:
+        engine = create_engine(connection_string)
+        df = pd.read_sql(query, engine)
+        return df
+    except Exception as e:
+        logging.error(f"Erro ao extrair dados do banco SQL: {e}")
+        return None
+
+
+def transform_data(df: pd.DataFrame, critical_columns: list | None = None) -> pd.DataFrame | None:
     """Transforma e limpa dados"""
     if df is None or not isinstance(df, pd.DataFrame):
         logging.error("DataFrame inválido para tratar os dados.")
@@ -82,7 +91,7 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame | None:
                 try:
                     transformed_df[col] = pd.to_numeric(transformed_df[col], errors='coerce')
                 except ValueError:
-                    pass  # Ignora se não for conversível
+                    pass  
 
 
         # Remover duplicatas, se aplicável
@@ -164,7 +173,7 @@ def query_with_langchain(agent_executor, user_query: str) -> str | None:
         return None
     try:
         logging.info(f"Executando consulta: {user_query}")
-        result = agent_executor.run(user_query)  # Executa a consulta com o agente
+        result = agent_executor.invoke(user_query)  # Executa a consulta com o agente
         logging.info("Consulta executada com sucesso.")
         return result
     
