@@ -6,6 +6,7 @@ from dash import dcc, html
 import os
 import json
 from datetime import datetime
+from typing import Optional
 
 from langchain.llms import openai
 from langchain.prompts import PromptTemplate
@@ -34,7 +35,7 @@ llm = ChatOpenAI(model="gpt-3.5-turbo")
 
 
 
-def extract_csv_data(filepath: str) -> pd.DataFrame | None:
+def extract_csv_data(filepath: str) -> Optional[pd.DataFrame]:
     """Extrai dados de um arquivo CSV."""
     try:
         df = pd.read_csv(filepath)
@@ -43,7 +44,7 @@ def extract_csv_data(filepath: str) -> pd.DataFrame | None:
         logging.error(f"Erro ao extrair CSV: {e}")
         return None
 
-def extract_excel_data(filepath: str) -> pd.DataFrame | None:
+def extract_excel_data(filepath: str) -> Optional[pd.DataFrame]:
     """Extrai dados de um arquivo Excel."""
     try:
         df = pd.read_excel(filepath)
@@ -52,7 +53,7 @@ def extract_excel_data(filepath: str) -> pd.DataFrame | None:
         logging.error(f"Erro ao extrair Excel: {e}")
         return None
 
-def extract_sql_data(connection_string: str, query: str) -> pd.DataFrame | None:
+def extract_sql_data(connection_string: str, query: str) -> Optional[pd.DataFrame]:
     try:
         engine = create_engine(connection_string)
         df = pd.read_sql(query, engine)
@@ -62,19 +63,18 @@ def extract_sql_data(connection_string: str, query: str) -> pd.DataFrame | None:
         return None
 
 
-def transform_data(df: pd.DataFrame, critical_columns: list | None = None) -> pd.DataFrame | None:
+def transform_data(df: pd.DataFrame, critical_columns: Optional[list] = None) -> Optional[pd.DataFrame]:
     """Transforma e limpa dados"""
     if df is None or not isinstance(df, pd.DataFrame):
         logging.error("DataFrame inválido para tratar os dados.")
         return None
     try:
         transformed_df = df.copy()
-        initial_rows = len(transformed_df)
-        logging.info(f"Iniciando transformação com {initial_rows} linhas e {len(transformed_df.columns)} colunas.")
-        
         # Remover linhas com valores nulos em colunas críticas (ajuste os nomes)
-        if critical_columns is None:
-            critical_columns = [col for col in transformed_df.columns if 'id' in col.lower() or 'valor' in col.lower()]
+        critical_columns = critical_columns or [col for col in transformed_df.columns if 'id' in col.lower() or 'valor' in col.lower()]
+        if critical_columns:
+            transformed_df.dropna(subset=critical_columns, inplace=True)
+            logging.info(f"Removidas {initial_rows - len(transformed_df)} linhas com nulos em {critical_columns}.")
         if critical_columns:
             transformed_df.dropna(subset=critical_columns, inplace=True)
             logging.info(f"Removidas {initial_rows - len(transformed_df)} linhas com nulos em {critical_columns}.")
@@ -85,13 +85,14 @@ def transform_data(df: pd.DataFrame, critical_columns: list | None = None) -> pd
 
         # Converter tipos de dados caso necessário(Tipo de data por exemplo)
         for col in transformed_df.columns:
-            if "data" in col or "date" in col:
-                transformed_df[col] = pd.to_datetime(transformed_df[col], errors='coerce')
-            elif transformed_df[col].dtype == 'object':
-                try:
-                    transformed_df[col] = pd.to_numeric(transformed_df[col], errors='coerce')
-                except ValueError:
-                    pass  
+            if transformed_df[col].dtype == 'object':
+                if "data" in col or "date" in col:
+                    transformed_df[col] = pd.to_datetime(transformed_df[col], errors='coerce')
+                else:
+                    try:
+                        transformed_df[col] = pd.to_numeric(transformed_df[col], errors='coerce')
+                    except ValueError:
+                        pass  
 
 
         # Remover duplicatas, se aplicável
@@ -124,7 +125,18 @@ def create_db_engine(df: pd.DataFrame) -> 'sqlalchemy.engine.Engine' | None:
         return None
     
 def create_session(engine) -> 'sqlalchemy.orm.Session' | None:
-    """Criação de um sessiomaker associado a engine, retornando uma session"""
+    """
+    Retorna:
+    str | None: O resultado da consulta, se bem-sucedida, ou None caso contrário.
+
+    Criação de um sessionmaker associado à engine, retornando uma session.
+
+    Parâmetros:
+    engine (sqlalchemy.engine.Engine): A engine do SQLAlchemy à qual o sessionmaker será vinculado.
+
+    Retorna:
+    sqlalchemy.orm.Session | None: Uma nova sessão do SQLAlchemy, se bem-sucedida, ou None caso contrário.
+    """
     try:
         Session = sessionmaker(bind=engine)
         session = Session()
@@ -135,7 +147,7 @@ def create_session(engine) -> 'sqlalchemy.orm.Session' | None:
         return None
 
 
-def create_sql_agent_from_session(session,engine) -> 'AgentExecutor' | None:
+def create_sql_agent_from_session(session,engine) -> Optional[AgentExecutor]:
     """ Criação de Agente SQL com LangChain a partir da session do SQLALchemy"""
     if session is None:
         logging.error("Sessão SQLAlchemy inválida para criar o agente SQL")
@@ -167,13 +179,22 @@ def create_sql_agent_from_session(session,engine) -> 'AgentExecutor' | None:
 
 
 def query_with_langchain(agent_executor, user_query: str) -> str | None:
-    """Interagem com um banco de dados usando um agente LangChain e uma consulta em linguagem natural"""
+    """
+    Interagem com um banco de dados usando um agente LangChain e uma consulta em linguagem natural.
+
+    Parameters:
+    agent_executor (AgentExecutor): O executor do agente LangChain.
+    user_query (str): A consulta em linguagem natural a ser executada. Deve ser uma string descritiva da consulta desejada.
+
+    Returns:
+    str | None: O resultado da consulta se bem-sucedida, None caso contrário.
+    """
     if agent_executor is None or not user_query or not isinstance(user_query, str):
         logging.error("Agente ou consulta inválida.")
         return None
     try:
         logging.info(f"Executando consulta: {user_query}")
-        result = agent_executor.invoke(user_query)  # Executa a consulta com o agente
+        result = agent_executor.run(user_query)  
         logging.info("Consulta executada com sucesso.")
         return result
     
